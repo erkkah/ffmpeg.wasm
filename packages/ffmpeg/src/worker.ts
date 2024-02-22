@@ -77,7 +77,7 @@ const setupStreams = (streamBuffers: FFMessageStreamsData) => {
     write: (_stream, buffer, offset, length) => {
       return outputStream.writeSync(Uint8Array.of(...buffer.slice(offset, offset + length)));
     },
-    close(stream) {
+    close() {
       outputStream.close();
     },
   });

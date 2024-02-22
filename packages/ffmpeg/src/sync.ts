@@ -36,14 +36,14 @@ export class SyncAsyncStream {
             this.#reset();
         }
 
-        var bytesWritten = 0;
+        let bytesWritten = 0;
 
         while (bytesWritten < source.length) {
             const [didWrite, checkedReadPosition] = this.#writeByte(source[bytesWritten]);
             if (didWrite) {
                 bytesWritten++;
             } else {
-                await Atomics.waitAsync(this.#index, 0, checkedReadPosition).value;
+                await Atomics.waitAsync(this.#index, 0, checkedReadPosition, 10).value;
             }
         }
 
@@ -55,14 +55,14 @@ export class SyncAsyncStream {
             this.#reset();
         }
 
-        var bytesWritten = 0;
+        let bytesWritten = 0;
 
         while (bytesWritten < source.length) {
             const [didWrite, checkedReadPosition] = this.#writeByte(source[bytesWritten]);
             if (didWrite) {
                 bytesWritten++;
             } else {
-                Atomics.wait(this.#index, 0, checkedReadPosition);
+                Atomics.wait(this.#index, 0, checkedReadPosition, 10);
             }
         }
 
@@ -76,7 +76,7 @@ export class SyncAsyncStream {
 
         let bytesRead = 0;
         while (bytesRead < limit) {
-            var checkedWritePosition = -1;
+            let checkedWritePosition = -1;
             while (this.#readPosition == (checkedWritePosition = this.#writePosition)) {
                 await Atomics.waitAsync(this.#index, 1, checkedWritePosition, 10).value;
                 if (this.#closed) {
@@ -100,7 +100,7 @@ export class SyncAsyncStream {
 
         let bytesRead = 0;
         while (bytesRead < limit) {
-            var checkedWritePosition = -1;
+            let checkedWritePosition = -1;
             while (this.#readPosition == (checkedWritePosition = this.#writePosition)) {
                 Atomics.wait(this.#index, 1, checkedWritePosition, 10);
                 if (this.#closed) {
@@ -118,7 +118,7 @@ export class SyncAsyncStream {
     }
 
     #reset() {
-        for (var i = 0; i < 3; i++) {
+        for (let i = 0; i < 3; i++) {
             Atomics.store(this.#index, i, 0);
         }
     }
