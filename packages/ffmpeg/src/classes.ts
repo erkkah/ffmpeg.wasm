@@ -16,9 +16,11 @@ import {
   FFFSType,
   FFFSMountOptions,
   FFFSPath,
+  FFMessageStreamsData,
 } from "./types.js";
 import { getMessageID } from "./utils.js";
-import { ERROR_TERMINATED, ERROR_NOT_LOADED } from "./errors.js";
+import { SyncAsyncStream } from "./sync.js";
+import { ERROR_TERMINATED, ERROR_NOT_LOADED, ERROR_STREAM_FAILURE } from "./errors.js";
 
 type FFMessageOptions = {
   signal?: AbortSignal;
@@ -44,6 +46,9 @@ export class FFmpeg {
   #logEventCallbacks: LogEventCallback[] = [];
   #progressEventCallbacks: ProgressEventCallback[] = [];
 
+  #inputStream?: SyncAsyncStream;
+  #outputStream?: SyncAsyncStream;
+
   public loaded = false;
 
   /**
@@ -62,6 +67,7 @@ export class FFmpeg {
           case FFMessageType.MOUNT:
           case FFMessageType.UNMOUNT:
           case FFMessageType.EXEC:
+          case FFMessageType.SETUP_STREAMS:
           case FFMessageType.WRITE_FILE:
           case FFMessageType.READ_FILE:
           case FFMessageType.DELETE_FILE:
@@ -270,6 +276,55 @@ export class FFmpeg {
       this.loaded = false;
     }
   };
+
+  public setupStreams = (inputBufferSize = 4096, outputBufferSize = 4096) => {
+    this.#inputStream = new SyncAsyncStream(inputBufferSize);
+    this.#outputStream = new SyncAsyncStream(outputBufferSize);
+    
+    const data: FFMessageStreamsData = {
+      input: this.#inputStream.buffer,
+      output: this.#outputStream.buffer,
+    };
+    return this.#send({type: FFMessageType.SETUP_STREAMS, data});
+  };
+
+  /**
+   * Write data to input stream.
+   * 
+   * Write `null` to signal end of stream.
+   * The stream device is mounted at "/dev/istream" and readable from fd 3.
+   * 
+   * @returns bytes written
+   * 
+   * @category File System
+   */
+  public writeToInputStream = (source: Uint8Array | null) => {
+    if (this.#inputStream == null) {
+      throw ERROR_STREAM_FAILURE;
+    }
+    if (source != null) {
+      return this.#inputStream.write(source);
+    } else {
+      this.#inputStream.close();
+      return Promise.resolve(0);
+    }
+  };
+
+  /**
+   * Read data from output stream.
+   * 
+   * The stream device is mounted at "/dev/ostream" and writable to fd 4.
+   * 
+   * @returns bytes read, or -1 on end of stream
+   * 
+   * @category File System
+   */
+  public readFromOutputStream = (target: Uint8Array, offset: number, limit: number) => {
+    if (this.#outputStream == null) {
+      throw ERROR_STREAM_FAILURE;
+    }
+    return this.#outputStream.read(target, offset, limit);
+  }
 
   /**
    * Write data to ffmpeg.wasm.

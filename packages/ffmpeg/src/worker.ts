@@ -22,12 +22,15 @@ import type {
   ExitCode,
   FSNode,
   FileData,
+  FFMessageStreamsData,
 } from "./types";
 import { CORE_URL, FFMessageType } from "./const.js";
+import { SyncAsyncStream } from "./sync.js";
 import {
   ERROR_UNKNOWN_MESSAGE_TYPE,
   ERROR_NOT_LOADED,
   ERROR_IMPORT_FAILURE,
+  ERROR_STREAM_FAILURE,
 } from "./errors.js";
 
 declare global {
@@ -39,6 +42,62 @@ declare global {
 interface ImportedFFmpegCoreModuleFactory {
   default: FFmpegCoreModuleFactory;
 }
+
+let inputStream: SyncAsyncStream;
+let outputStream: SyncAsyncStream;
+
+const setupStreams = (streamBuffers: FFMessageStreamsData) => {
+  inputStream = new SyncAsyncStream(streamBuffers.input);
+  outputStream = new SyncAsyncStream(streamBuffers.output);
+
+  const inputDevice = ffmpeg.FS.makedev(72, 0);
+  const outputDevice = ffmpeg.FS.makedev(72, 1);
+
+  ffmpeg.FS.registerDevice(inputDevice, {
+    open: (stream) => {
+      stream.seekable = false;
+    },
+    read: (_stream, buffer, offset, length) => {
+      const target = new Uint8Array(length);
+      const bytesRead = inputStream.readSync(target, 0, length);
+      for (let i = 0; i < bytesRead; i++) {
+        buffer[offset + i] = target[i];
+      }
+      if (bytesRead < 0) {
+        return 0;
+      }
+      return bytesRead;
+    },
+  });
+
+  ffmpeg.FS.registerDevice(outputDevice, {
+    open: (stream) => {
+      stream.seekable = false;
+    },
+    write: (_stream, buffer, offset, length) => {
+      return outputStream.writeSync(Uint8Array.of(...buffer.slice(offset, offset + length)));
+    },
+    close(stream) {
+      outputStream.close();
+    },
+  });
+
+  ffmpeg.FS.mkdev("/dev/istream", 0o777, inputDevice);
+  ffmpeg.FS.mkdev("/dev/ostream", 0o777, outputDevice);
+
+  const input = ffmpeg.FS.open("/dev/istream", "r");
+  const output = ffmpeg.FS.open("/dev/ostream", "w");
+
+  // Since this is done early on, we should get the next descriptors
+  // after stderr.
+  if (input.fd != 3 || output.fd != 4) {
+    throw ERROR_STREAM_FAILURE;
+  }
+};
+
+const closeOutputStream = () => {
+  outputStream?.close();
+};
 
 let ffmpeg: FFmpegCoreModule;
 
@@ -97,6 +156,7 @@ const exec = ({ args, timeout = -1 }: FFMessageExecData): ExitCode => {
   ffmpeg.exec(...args);
   const ret = ffmpeg.ret;
   ffmpeg.reset();
+  closeOutputStream();
   return ret;
 };
 
@@ -169,6 +229,9 @@ self.onmessage = async ({
         break;
       case FFMessageType.EXEC:
         data = exec(_data as FFMessageExecData);
+        break;
+      case FFMessageType.SETUP_STREAMS:
+        setupStreams(_data as FFMessageStreamsData);
         break;
       case FFMessageType.WRITE_FILE:
         data = writeFile(_data as FFMessageWriteFileData);

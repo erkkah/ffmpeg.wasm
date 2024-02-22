@@ -37,6 +37,11 @@ export interface FFMessageExecData {
   timeout?: number;
 }
 
+export interface FFMessageStreamsData {
+  input: SharedArrayBuffer;
+  output: SharedArrayBuffer;
+}
+
 export interface FFMessageWriteFileData {
   path: FFFSPath;
   data: FileData;
@@ -110,6 +115,7 @@ export interface FFMessageUnmountData {
 export type FFMessageData =
   | FFMessageLoadConfig
   | FFMessageExecData
+  | FFMessageStreamsData
   | FFMessageWriteFileData
   | FFMessageReadFileData
   | FFMessageDeleteFileData

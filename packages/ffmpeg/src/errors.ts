@@ -6,3 +6,4 @@ export const ERROR_TERMINATED = new Error("called FFmpeg.terminate()");
 export const ERROR_IMPORT_FAILURE = new Error(
   "failed to import ffmpeg-core.js"
 );
+export const ERROR_STREAM_FAILURE = new Error("stream setup failure");

@@ -56,6 +56,20 @@ export type FSFilesystem =
 | FSFilesystemWORKERFS
 | FSFilesystemMEMFS;
 
+export interface FSStream {
+  fd: number | null;
+  seekable: boolean;
+  flags: number;
+  position: number;
+}
+
+export interface FSDevOps {
+  open?: (stream: FSStream) => void;
+  close?: (stream: FSStream) => void;
+  read?: (stream: FSStream, buffer: Uint8Array, offset: number, length: number, pos: number) => number;
+  write?: (stream: FSStream, buffer: Uint8Array, offset: number, length: number, pos: number) => number;
+}
+
 /**
  * Functions to interact with Emscripten FS library.
  *
@@ -63,6 +77,10 @@ export type FSFilesystem =
  * @category File System
  */
 export interface FS {
+  makedev: (major: number, minor: number) => number;
+  registerDevice: (dev: number, ops: FSDevOps) => void;
+  open: (path: string, mode: string) => FSStream;
+  mkdev: (path: string, mode: number, dev: number) => boolean;
   mkdir: (path: string) => void;
   rmdir: (path: string) => void;
   rename: (oldPath: string, newPath: string) => void;
