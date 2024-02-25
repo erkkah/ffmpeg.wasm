@@ -183,19 +183,22 @@ export class SyncAsyncStream {
     }
 
     #writeBytes(bytes: Uint8Array): [number, number] {
-        const nextWritePosition = (this.#writePosition + 1) % this.#data.length;
+        const currentWritePosition = this.#writePosition;
+        const nextWritePosition = (currentWritePosition + 1) % this.#data.length;
         const currentReadPosition = this.#readPosition;
         if (nextWritePosition == currentReadPosition) {
             return [0, currentReadPosition];
         }
 
         const contiguousSpace =
-            currentReadPosition > nextWritePosition
-                ? currentReadPosition - nextWritePosition
-                : this.#data.length - nextWritePosition;
+            currentReadPosition > currentWritePosition
+                ? currentReadPosition - currentWritePosition
+                : this.#data.length - currentWritePosition;
 
         const bytesToWrite = Math.min(bytes.length, contiguousSpace);
-        this.#data.set(bytes.subarray(0, bytesToWrite), nextWritePosition);
+        this.#data.set(bytes.subarray(0, bytesToWrite), currentWritePosition);
+        this.#writePosition = (this.#writePosition + bytesToWrite) % this.#data.length;
+        this.#notifyReaders();
 
         return [bytesToWrite, currentReadPosition];
     }
