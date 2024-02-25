@@ -14,11 +14,17 @@ export class SyncAsyncStream {
     constructor(buffer: SharedArrayBuffer);
     constructor(sizeInBytesOrBuffer: number | SharedArrayBuffer) {
         if (typeof sizeInBytesOrBuffer === "number") {
-            this.#buffer = new SharedArrayBuffer(sizeInBytesOrBuffer + SyncAsyncStream.#indexBytes);
+            this.#buffer = new SharedArrayBuffer(
+                sizeInBytesOrBuffer + SyncAsyncStream.#indexBytes
+            );
         } else {
             this.#buffer = sizeInBytesOrBuffer;
         }
-        this.#index = new Int32Array(this.#buffer, 0, SyncAsyncStream.#indexBytes);
+        this.#index = new Int32Array(
+            this.#buffer,
+            0,
+            SyncAsyncStream.#indexBytes
+        );
         this.#data = new Uint8Array(this.#buffer, SyncAsyncStream.#indexBytes);
     }
 
@@ -32,36 +38,45 @@ export class SyncAsyncStream {
     }
 
     async write(source: Uint8Array): Promise<number> {
-        let bytesWritten = 0;
+        let totalBytesWritten = 0;
 
-        while (bytesWritten < source.length) {
-            const [didWrite, checkedReadPosition] = this.#writeByte(source[bytesWritten]);
-            if (didWrite) {
-                bytesWritten++;
+        while (totalBytesWritten < source.length) {
+            const [bytesWritten, checkedReadPosition] = this.#writeBytes(
+                source.subarray(totalBytesWritten)
+            );
+            if (bytesWritten > 0) {
+                totalBytesWritten += bytesWritten;
             } else {
-                await Atomics.waitAsync(this.#index, 0, checkedReadPosition, 10).value;
+                await Atomics.waitAsync(this.#index, 0, checkedReadPosition, 10)
+                    .value;
             }
         }
 
-        return bytesWritten;
+        return totalBytesWritten;
     }
 
     writeSync(source: Uint8Array): number {
-        let bytesWritten = 0;
+        let totalBytesWritten = 0;
 
-        while (bytesWritten < source.length) {
-            const [didWrite, checkedReadPosition] = this.#writeByte(source[bytesWritten]);
-            if (didWrite) {
-                bytesWritten++;
+        while (totalBytesWritten < source.length) {
+            const [bytesWritten, checkedReadPosition] = this.#writeBytes(
+                source.subarray(totalBytesWritten)
+            );
+            if (bytesWritten > 0) {
+                totalBytesWritten += bytesWritten;
             } else {
                 Atomics.wait(this.#index, 0, checkedReadPosition, 10);
             }
         }
 
-        return bytesWritten;
+        return totalBytesWritten;
     }
 
-    async read(target: Uint8Array, offset: number, limit: number): Promise<number> {
+    async read(
+        target: Uint8Array,
+        offset: number,
+        limit: number
+    ): Promise<number> {
         if (this.#endOfStream) {
             return -1;
         }
@@ -69,8 +84,16 @@ export class SyncAsyncStream {
         let bytesRead = 0;
         while (bytesRead < limit) {
             let checkedWritePosition = -1;
-            while (this.#readPosition == (checkedWritePosition = this.#writePosition)) {
-                await Atomics.waitAsync(this.#index, 1, checkedWritePosition, 10).value;
+            while (
+                this.#readPosition ==
+                (checkedWritePosition = this.#writePosition)
+            ) {
+                await Atomics.waitAsync(
+                    this.#index,
+                    1,
+                    checkedWritePosition,
+                    10
+                ).value;
                 if (this.#closed) {
                     this.#setEndOfStream();
                     return bytesRead;
@@ -93,7 +116,10 @@ export class SyncAsyncStream {
         let bytesRead = 0;
         while (bytesRead < limit) {
             let checkedWritePosition = -1;
-            while (this.#readPosition == (checkedWritePosition = this.#writePosition)) {
+            while (
+                this.#readPosition ==
+                (checkedWritePosition = this.#writePosition)
+            ) {
                 Atomics.wait(this.#index, 1, checkedWritePosition, 10);
                 if (this.#closed) {
                     this.#setEndOfStream();
@@ -156,15 +182,21 @@ export class SyncAsyncStream {
         Atomics.store(this.#index, 1, pos);
     }
 
-    #writeByte(byte: number): [boolean, number] {
+    #writeBytes(bytes: Uint8Array): [number, number] {
         const nextWritePosition = (this.#writePosition + 1) % this.#data.length;
         const currentReadPosition = this.#readPosition;
         if (nextWritePosition == currentReadPosition) {
-            return [false, currentReadPosition];
+            return [0, currentReadPosition];
         }
-        this.#data[this.#writePosition] = byte;
-        this.#writePosition = nextWritePosition;
-        this.#notifyReaders();
-        return [true, currentReadPosition];
+
+        const contiguousSpace =
+            currentReadPosition > nextWritePosition
+                ? currentReadPosition - nextWritePosition
+                : this.#data.length - nextWritePosition;
+
+        const bytesToWrite = Math.min(bytes.length, contiguousSpace);
+        this.#data.set(bytes.subarray(0, bytesToWrite), nextWritePosition);
+
+        return [bytesToWrite, currentReadPosition];
     }
 }
