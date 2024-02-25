@@ -32,10 +32,6 @@ export class SyncAsyncStream {
     }
 
     async write(source: Uint8Array): Promise<number> {
-        if (this.#closed) {
-            this.#reset();
-        }
-
         let bytesWritten = 0;
 
         while (bytesWritten < source.length) {
@@ -51,10 +47,6 @@ export class SyncAsyncStream {
     }
 
     writeSync(source: Uint8Array): number {
-        if (this.#closed) {
-            this.#reset();
-        }
-
         let bytesWritten = 0;
 
         while (bytesWritten < source.length) {
@@ -117,7 +109,7 @@ export class SyncAsyncStream {
         return bytesRead;
     }
 
-    #reset() {
+    reset() {
         for (let i = 0; i < 3; i++) {
             Atomics.store(this.#index, i, 0);
         }

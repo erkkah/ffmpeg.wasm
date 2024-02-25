@@ -288,6 +288,11 @@ export class FFmpeg {
     return this.#send({type: FFMessageType.SETUP_STREAMS, data});
   };
 
+  public resetStreams = () => {
+    this.#inputStream?.reset();
+    this.#outputStream?.reset();
+  };
+
   /**
    * Write data to input stream.
    * 
