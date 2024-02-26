@@ -87,16 +87,17 @@ export class SyncAsyncStream {
                 this.#readPosition ==
                 (checkedWritePosition = this.#writePosition)
             ) {
+                if (this.#closed) {
+                    this.#setEndOfStream();
+                    return bytesRead;
+                }
+
                 await Atomics.waitAsync(
                     this.#index,
                     1,
                     checkedWritePosition,
                     10
                 ).value;
-                if (this.#closed) {
-                    this.#setEndOfStream();
-                    return bytesRead;
-                }
             }
             bytesRead += this.#readBytes(target, offset + bytesRead);
         }
@@ -115,11 +116,12 @@ export class SyncAsyncStream {
                 this.#readPosition ==
                 (checkedWritePosition = this.#writePosition)
             ) {
-                Atomics.wait(this.#index, 1, checkedWritePosition, 10);
                 if (this.#closed) {
                     this.#setEndOfStream();
                     return bytesRead;
                 }
+
+                Atomics.wait(this.#index, 1, checkedWritePosition, 10);
             }
             bytesRead += this.#readBytes(target, offset + bytesRead);
         }
