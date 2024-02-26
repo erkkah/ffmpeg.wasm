@@ -2,9 +2,7 @@
  * A shared buffer with async and sync streaming access.
  */
 export class SyncAsyncStream {
-    /*
-    [32 bit readPosition, 32 bit writePosition, 32 bit state, bytes...]
-    */
+    // [32 bit readPosition, 32 bit writePosition, 32 bit state, bytes...]
     static #indexBytes = 3 * 4;
     #buffer: SharedArrayBuffer;
     #index: Int32Array;
@@ -84,6 +82,7 @@ export class SyncAsyncStream {
         let bytesRead = 0;
         while (bytesRead < limit) {
             let checkedWritePosition = -1;
+            // Wait for data
             while (
                 this.#readPosition ==
                 (checkedWritePosition = this.#writePosition)
@@ -99,11 +98,7 @@ export class SyncAsyncStream {
                     return bytesRead;
                 }
             }
-            const readPosition = this.#readPosition;
-            target[offset + bytesRead] = this.#data[readPosition];
-            this.#readPosition = (readPosition + 1) % this.#data.length;
-            this.#notifyWriters();
-            bytesRead++;
+            bytesRead += this.#readBytes(target, offset + bytesRead);
         }
         return bytesRead;
     }
@@ -126,11 +121,7 @@ export class SyncAsyncStream {
                     return bytesRead;
                 }
             }
-            const readPosition = this.#readPosition;
-            target[offset + bytesRead] = this.#data[readPosition];
-            this.#readPosition = (readPosition + 1) % this.#data.length;
-            this.#notifyWriters();
-            bytesRead++;
+            bytesRead += this.#readBytes(target, offset + bytesRead);
         }
         return bytesRead;
     }
@@ -187,7 +178,10 @@ export class SyncAsyncStream {
         const currentReadPosition = this.#readPosition;
 
         // Full
-        if ((currentWritePosition + 1) % this.#data.length == currentReadPosition) {
+        if (
+            (currentWritePosition + 1) % this.#data.length ==
+            currentReadPosition
+        ) {
             return [0, currentReadPosition];
         }
 
@@ -196,9 +190,9 @@ export class SyncAsyncStream {
                 ? currentReadPosition - currentWritePosition
                 : this.#data.length - currentWritePosition;
 
-
         var bytesToWrite = Math.min(bytes.length, contiguousSpace);
-        var nextWritePosition = (currentWritePosition + bytesToWrite) % this.#data.length;
+        var nextWritePosition =
+            (currentWritePosition + bytesToWrite) % this.#data.length;
 
         // Never overwrite unread data
         if (nextWritePosition == currentReadPosition) {
@@ -214,5 +208,21 @@ export class SyncAsyncStream {
         this.#notifyReaders();
 
         return [bytesToWrite, currentReadPosition];
+    }
+
+    #readBytes(target: Uint8Array, offset: number): number {
+        const currentWritePosition = this.#writePosition;
+        const currentReadPosition = this.#readPosition;
+
+        const contiguousData =
+            currentReadPosition < currentWritePosition
+                ? currentWritePosition - currentReadPosition
+                : this.#data.length - currentReadPosition;
+
+        const bytesToRead = Math.min(target.length - offset, contiguousData);
+        target.set(this.#data.subarray(currentReadPosition, currentReadPosition + bytesToRead), offset);
+        this.#readPosition = (currentReadPosition + bytesToRead) % this.#data.length;
+        this.#notifyWriters();
+        return bytesToRead;
     }
 }
