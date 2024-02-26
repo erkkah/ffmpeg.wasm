@@ -184,9 +184,10 @@ export class SyncAsyncStream {
 
     #writeBytes(bytes: Uint8Array): [number, number] {
         const currentWritePosition = this.#writePosition;
-        const nextWritePosition = (currentWritePosition + 1) % this.#data.length;
         const currentReadPosition = this.#readPosition;
-        if (nextWritePosition == currentReadPosition) {
+
+        // Full
+        if ((currentWritePosition + 1) % this.#data.length == currentReadPosition) {
             return [0, currentReadPosition];
         }
 
@@ -195,9 +196,21 @@ export class SyncAsyncStream {
                 ? currentReadPosition - currentWritePosition
                 : this.#data.length - currentWritePosition;
 
-        const bytesToWrite = Math.min(bytes.length, contiguousSpace);
+
+        var bytesToWrite = Math.min(bytes.length, contiguousSpace);
+        var nextWritePosition = (currentWritePosition + bytesToWrite) % this.#data.length;
+
+        // Never overwrite unread data
+        if (nextWritePosition == currentReadPosition) {
+            nextWritePosition--;
+            bytesToWrite--;
+            if (nextWritePosition < 0) {
+                nextWritePosition += this.#data.length;
+            }
+        }
+
         this.#data.set(bytes.subarray(0, bytesToWrite), currentWritePosition);
-        this.#writePosition = (this.#writePosition + bytesToWrite) % this.#data.length;
+        this.#writePosition = nextWritePosition;
         this.#notifyReaders();
 
         return [bytesToWrite, currentReadPosition];
