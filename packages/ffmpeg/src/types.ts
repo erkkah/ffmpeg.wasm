@@ -152,6 +152,7 @@ export interface ProgressEvent {
 export type ExitCode = number;
 export type ErrorMessage = string;
 export type FileData = Uint8Array | string;
+export type StreamData = [number, number];
 export type IsFirst = boolean;
 export type OK = boolean;
 
@@ -170,6 +171,7 @@ export type CallbackData =
   | OK // eslint-disable-line
   | Error
   | FSNode[]
+  | StreamData
   | undefined;
 
 export interface Callbacks {

@@ -17,6 +17,7 @@ import {
   FFFSMountOptions,
   FFFSPath,
   FFMessageStreamsData,
+  StreamData,
 } from "./types.js";
 import { getMessageID } from "./utils.js";
 import { SyncAsyncStream } from "./sync.js";
@@ -46,8 +47,8 @@ export class FFmpeg {
   #logEventCallbacks: LogEventCallback[] = [];
   #progressEventCallbacks: ProgressEventCallback[] = [];
 
-  #inputStream?: SyncAsyncStream;
-  #outputStream?: SyncAsyncStream;
+  #inputStreams = new Map<number, SyncAsyncStream>();
+  #outputStreams = new Map<number, SyncAsyncStream>();
 
   public loaded = false;
 
@@ -277,20 +278,27 @@ export class FFmpeg {
     }
   };
 
-  public setupStreams = (inputBufferSize = 4096, outputBufferSize = 4096) => {
-    this.#inputStream = new SyncAsyncStream(inputBufferSize);
-    this.#outputStream = new SyncAsyncStream(outputBufferSize);
+  public addStreamPair = async (inputBufferSize = 4096, outputBufferSize = 4096) => {
+    const inputStream = new SyncAsyncStream(inputBufferSize);
+    const outputStream = new SyncAsyncStream(outputBufferSize);
     
     const data: FFMessageStreamsData = {
-      input: this.#inputStream.buffer,
-      output: this.#outputStream.buffer,
+      input: inputStream.buffer,
+      output: outputStream.buffer,
     };
-    return this.#send({type: FFMessageType.SETUP_STREAMS, data});
+    const streams = await (this.#send({type: FFMessageType.SETUP_STREAMS, data}) as Promise<StreamData>);
+    this.#inputStreams.set(streams[0], inputStream);
+    this.#outputStreams.set(streams[1], outputStream);
+    return streams;
   };
 
   public resetStreams = () => {
-    this.#inputStream?.reset();
-    this.#outputStream?.reset();
+    for (const s of this.#inputStreams.values()) {
+      s.reset();
+    }
+    for (const s of this.#outputStreams.values()) {
+      s.reset();
+    }
   };
 
   /**
@@ -303,14 +311,15 @@ export class FFmpeg {
    * 
    * @category File System
    */
-  public writeToInputStream = (source: Uint8Array | null) => {
-    if (this.#inputStream == null) {
+  public writeToInputStream = (stream: number, source: Uint8Array | null) => {
+    const inputStream = this.#inputStreams.get(stream);
+    if (inputStream == undefined) {
       throw ERROR_STREAM_FAILURE;
     }
     if (source != null) {
-      return this.#inputStream.write(source);
+      return inputStream.write(source);
     } else {
-      this.#inputStream.close();
+      inputStream.close();
       return Promise.resolve(0);
     }
   };
@@ -324,11 +333,12 @@ export class FFmpeg {
    * 
    * @category File System
    */
-  public readFromOutputStream = (target: Uint8Array, offset: number, limit: number) => {
-    if (this.#outputStream == null) {
+  public readFromOutputStream = (stream: number, target: Uint8Array, offset: number, limit: number) => {
+    const outputStream = this.#outputStreams.get(stream);
+    if (outputStream == undefined) {
       throw ERROR_STREAM_FAILURE;
     }
-    return this.#outputStream.read(target, offset, limit);
+    return outputStream.read(target, offset, limit);
   }
 
   /**
