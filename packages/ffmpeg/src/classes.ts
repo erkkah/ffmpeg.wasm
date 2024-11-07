@@ -291,7 +291,7 @@ export class FFmpeg {
     return stream;
   };
 
-  public addStreamPair = async (outputBufferSize = 4096) => {
+  public addOutputStream = async (outputBufferSize = 4096) => {
     const outputStream = new SyncAsyncStream(outputBufferSize);
 
     const data: FFMessageOutputStreamData = {
