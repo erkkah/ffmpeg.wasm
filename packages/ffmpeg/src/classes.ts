@@ -16,8 +16,9 @@ import {
   FFFSType,
   FFFSMountOptions,
   FFFSPath,
-  FFMessageStreamsData,
   StreamData,
+  FFMessageInputStreamData,
+  FFMessageOutputStreamData,
 } from "./types.js";
 import { getMessageID } from "./utils.js";
 import { SyncAsyncStream } from "./sync.js";
@@ -68,7 +69,8 @@ export class FFmpeg {
           case FFMessageType.MOUNT:
           case FFMessageType.UNMOUNT:
           case FFMessageType.EXEC:
-          case FFMessageType.SETUP_STREAMS:
+          case FFMessageType.CREATE_INPUT_STREAM:
+          case FFMessageType.CREATE_OUTPUT_STREAM:
           case FFMessageType.WRITE_FILE:
           case FFMessageType.READ_FILE:
           case FFMessageType.DELETE_FILE:
@@ -278,19 +280,28 @@ export class FFmpeg {
     }
   };
 
-  public addStreamPair = async (inputBufferSize = 4096, outputBufferSize = 4096) => {
+  public addInputStream = async (inputBufferSize = 4096) => {
     const inputStream = new SyncAsyncStream(inputBufferSize);
-    const outputStream = new SyncAsyncStream(outputBufferSize);
     
-    const data: FFMessageStreamsData = {
+    const data: FFMessageInputStreamData = {
       input: inputStream.buffer,
+    };
+    const stream = await (this.#send({type: FFMessageType.CREATE_INPUT_STREAM, data}) as Promise<StreamData>);
+    this.#inputStreams.set(stream, inputStream);
+    return stream;
+  };
+
+  public addStreamPair = async (outputBufferSize = 4096) => {
+    const outputStream = new SyncAsyncStream(outputBufferSize);
+
+    const data: FFMessageOutputStreamData = {
       output: outputStream.buffer,
     };
-    const streams = await (this.#send({type: FFMessageType.SETUP_STREAMS, data}) as Promise<StreamData>);
-    this.#inputStreams.set(streams[0], inputStream);
-    this.#outputStreams.set(streams[1], outputStream);
-    return streams;
+    const stream = await (this.#send({type: FFMessageType.CREATE_OUTPUT_STREAM, data}) as Promise<StreamData>);
+    this.#outputStreams.set(stream, outputStream);
+    return stream;
   };
+
 
   public resetStreams = () => {
     for (const s of this.#inputStreams.values()) {

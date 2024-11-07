@@ -22,7 +22,8 @@ import type {
   ExitCode,
   FSNode,
   FileData,
-  FFMessageStreamsData,
+  FFMessageInputStreamData,
+  FFMessageOutputStreamData,
 } from "./types";
 import { CORE_URL, FFMessageType } from "./const.js";
 import { SyncAsyncStream } from "./sync.js";
@@ -46,13 +47,10 @@ interface ImportedFFmpegCoreModuleFactory {
 const inputStreams = new Map<number, SyncAsyncStream>;
 const outputStreams = new Map<number, SyncAsyncStream>;
 
-const setupStreams = (streamBuffers: FFMessageStreamsData): [number, number] => {
-  const inputStream = new SyncAsyncStream(streamBuffers.input);
-  const outputStream = new SyncAsyncStream(streamBuffers.output);
-
+const createInputStream = (streamBuffer: FFMessageInputStreamData): number => {
+  const inputStream = new SyncAsyncStream(streamBuffer.input);
   const nextMinor = inputStreams.size + outputStreams.size;
   const inputDevice = ffmpeg.FS.makedev(72, nextMinor);
-  const outputDevice = ffmpeg.FS.makedev(72, nextMinor + 1);
 
   ffmpeg.FS.registerDevice(inputDevice, {
     open: (stream) => {
@@ -71,6 +69,24 @@ const setupStreams = (streamBuffers: FFMessageStreamsData): [number, number] => 
     },
   });
 
+  ffmpeg.FS.mkdev(`/dev/istream${nextMinor}`, 0o777, inputDevice);
+
+  const input = ffmpeg.FS.open("/dev/istream", "r");
+
+  if (input.fd == null) {
+    throw ERROR_STREAM_FAILURE;
+  }
+
+  inputStreams.set(input.fd, inputStream);
+
+  return input.fd;
+};
+
+const createOutputStream = (streamBuffer: FFMessageOutputStreamData): number => {
+  const outputStream = new SyncAsyncStream(streamBuffer.output);
+  const nextMinor = inputStreams.size + outputStreams.size;
+  const outputDevice = ffmpeg.FS.makedev(72, nextMinor);
+
   ffmpeg.FS.registerDevice(outputDevice, {
     open: (stream) => {
       stream.seekable = false;
@@ -83,20 +99,17 @@ const setupStreams = (streamBuffers: FFMessageStreamsData): [number, number] => 
     },
   });
 
-  ffmpeg.FS.mkdev("/dev/istream", 0o777, inputDevice);
-  ffmpeg.FS.mkdev("/dev/ostream", 0o777, outputDevice);
+  ffmpeg.FS.mkdev(`/dev/ostream${nextMinor}`, 0o777, outputDevice);
 
-  const input = ffmpeg.FS.open("/dev/istream", "r");
   const output = ffmpeg.FS.open("/dev/ostream", "w");
 
-  if (input.fd == null || output.fd == null) {
+  if (output.fd == null) {
     throw ERROR_STREAM_FAILURE;
   }
 
-  inputStreams.set(input.fd, inputStream);
   outputStreams.set(output.fd, outputStream);
 
-  return [input.fd, output.fd];
+  return output.fd;
 };
 
 const closeOutputStreams = () => {
@@ -236,10 +249,13 @@ self.onmessage = async ({
       case FFMessageType.EXEC:
         data = exec(_data as FFMessageExecData);
         break;
-      case FFMessageType.SETUP_STREAMS:
-        data = setupStreams(_data as FFMessageStreamsData);
+      case FFMessageType.CREATE_INPUT_STREAM:
+        data = createInputStream(_data as FFMessageInputStreamData);
         break;
-      case FFMessageType.WRITE_FILE:
+        case FFMessageType.CREATE_OUTPUT_STREAM:
+        data = createOutputStream(_data as FFMessageOutputStreamData);
+        break;
+        case FFMessageType.WRITE_FILE:
         data = writeFile(_data as FFMessageWriteFileData);
         break;
       case FFMessageType.READ_FILE:

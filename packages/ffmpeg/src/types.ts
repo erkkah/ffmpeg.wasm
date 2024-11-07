@@ -37,8 +37,11 @@ export interface FFMessageExecData {
   timeout?: number;
 }
 
-export interface FFMessageStreamsData {
+export interface FFMessageInputStreamData {
   input: SharedArrayBuffer;
+}
+
+export interface FFMessageOutputStreamData {
   output: SharedArrayBuffer;
 }
 
@@ -115,7 +118,8 @@ export interface FFMessageUnmountData {
 export type FFMessageData =
   | FFMessageLoadConfig
   | FFMessageExecData
-  | FFMessageStreamsData
+  | FFMessageInputStreamData
+  | FFMessageOutputStreamData
   | FFMessageWriteFileData
   | FFMessageReadFileData
   | FFMessageDeleteFileData
@@ -152,7 +156,7 @@ export interface ProgressEvent {
 export type ExitCode = number;
 export type ErrorMessage = string;
 export type FileData = Uint8Array | string;
-export type StreamData = [number, number];
+export type StreamData = number;
 export type IsFirst = boolean;
 export type OK = boolean;
 
@@ -171,7 +175,7 @@ export type CallbackData =
   | OK // eslint-disable-line
   | Error
   | FSNode[]
-  | StreamData
+  | StreamData // eslint-disable-line
   | undefined;
 
 export interface Callbacks {
