@@ -302,7 +302,6 @@ export class FFmpeg {
     return stream;
   };
 
-
   public resetStreams = () => {
     for (const s of this.#inputStreams.values()) {
       s.reset();

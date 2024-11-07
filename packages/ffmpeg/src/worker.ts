@@ -69,9 +69,10 @@ const createInputStream = (streamBuffer: FFMessageInputStreamData): number => {
     },
   });
 
-  ffmpeg.FS.mkdev(`/dev/istream${nextMinor}`, 0o777, inputDevice);
+  const path = `/dev/istream${nextMinor}`;
+  ffmpeg.FS.mkdev(path, 0o777, inputDevice);
 
-  const input = ffmpeg.FS.open("/dev/istream", "r");
+  const input = ffmpeg.FS.open(path, "r");
 
   if (input.fd == null) {
     throw ERROR_STREAM_FAILURE;
@@ -99,9 +100,10 @@ const createOutputStream = (streamBuffer: FFMessageOutputStreamData): number => 
     },
   });
 
-  ffmpeg.FS.mkdev(`/dev/ostream${nextMinor}`, 0o777, outputDevice);
+  const path = `/dev/ostream${nextMinor}`;
+  ffmpeg.FS.mkdev(path, 0o777, outputDevice);
 
-  const output = ffmpeg.FS.open("/dev/ostream", "w");
+  const output = ffmpeg.FS.open(path, "w");
 
   if (output.fd == null) {
     throw ERROR_STREAM_FAILURE;
