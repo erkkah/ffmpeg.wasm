@@ -181,6 +181,16 @@ const exec = ({ args, timeout = -1 }: FFMessageExecData): ExitCode => {
   return ret;
 };
 
+type NativeModule = FFmpegCoreModule & {
+  _abort(): void;
+}
+
+const abort = (): OK => {
+  const native = ffmpeg as NativeModule;
+  native._abort();
+  return true;
+};
+
 const writeFile = ({ path, data }: FFMessageWriteFileData): OK => {
   ffmpeg.FS.writeFile(path, data);
   return true;
@@ -250,6 +260,9 @@ self.onmessage = async ({
         break;
       case FFMessageType.EXEC:
         data = exec(_data as FFMessageExecData);
+        break;
+      case FFMessageType.ABORT:
+        data = abort();
         break;
       case FFMessageType.CREATE_INPUT_STREAM:
         data = createInputStream(_data as FFMessageInputStreamData);

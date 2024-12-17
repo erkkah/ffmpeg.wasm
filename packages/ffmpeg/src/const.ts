@@ -7,6 +7,7 @@ export const CORE_URL = `https://unpkg.com/@ffmpeg/core@${CORE_VERSION}/dist/umd
 export enum FFMessageType {
   LOAD = "LOAD",
   EXEC = "EXEC",
+  ABORT = "ABORT",
   CREATE_INPUT_STREAM = "CREATE_INPUT_STREAM",
   CREATE_OUTPUT_STREAM = "CREATE_OUTPUT_STREAM",
   WRITE_FILE = "WRITE_FILE",
