@@ -279,6 +279,9 @@ export class FFmpeg {
       this.#worker = null;
       this.loaded = false;
     }
+
+    this.#inputStreams.clear();
+    this.#outputStreams.clear();
   };
 
   public addInputStream = async (inputBufferSize = 4096) => {
