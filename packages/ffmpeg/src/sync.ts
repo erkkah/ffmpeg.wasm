@@ -45,8 +45,7 @@ export class SyncAsyncStream {
             if (bytesWritten > 0) {
                 totalBytesWritten += bytesWritten;
             } else {
-                await Atomics.waitAsync(this.#index, 0, checkedReadPosition, 10)
-                    .value;
+                await waitAsync(this.#index, 0, checkedReadPosition, 10);
             }
         }
 
@@ -92,12 +91,7 @@ export class SyncAsyncStream {
                     return bytesRead;
                 }
 
-                await Atomics.waitAsync(
-                    this.#index,
-                    1,
-                    checkedWritePosition,
-                    10
-                ).value;
+                await waitAsync(this.#index, 1, checkedWritePosition, 10);
             }
             bytesRead += this.#readBytes(target, offset + bytesRead);
         }
@@ -192,8 +186,8 @@ export class SyncAsyncStream {
                 ? currentReadPosition - currentWritePosition
                 : this.#data.length - currentWritePosition;
 
-        var bytesToWrite = Math.min(bytes.length, contiguousSpace);
-        var nextWritePosition =
+        let bytesToWrite = Math.min(bytes.length, contiguousSpace);
+        let nextWritePosition =
             (currentWritePosition + bytesToWrite) % this.#data.length;
 
         // Never overwrite unread data
@@ -222,9 +216,37 @@ export class SyncAsyncStream {
                 : this.#data.length - currentReadPosition;
 
         const bytesToRead = Math.min(target.length - offset, contiguousData);
-        target.set(this.#data.subarray(currentReadPosition, currentReadPosition + bytesToRead), offset);
-        this.#readPosition = (currentReadPosition + bytesToRead) % this.#data.length;
+        target.set(
+            this.#data.subarray(
+                currentReadPosition,
+                currentReadPosition + bytesToRead
+            ),
+            offset
+        );
+        this.#readPosition =
+            (currentReadPosition + bytesToRead) % this.#data.length;
         this.#notifyWriters();
         return bytesToRead;
+    }
+}
+
+async function waitAsync(
+    typedArray: Int32Array,
+    index: number,
+    expected: number,
+    timeout?: number
+) {
+    if (Atomics.waitAsync) {
+        const { async: isAsync, value } = Atomics.waitAsync(
+            typedArray,
+            index,
+            expected,
+            timeout
+        );
+        if (isAsync) {
+            await value;
+        }
+    } else {
+        await new Promise((resolve) => setTimeout(resolve, 0));
     }
 }

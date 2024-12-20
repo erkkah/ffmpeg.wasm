@@ -318,8 +318,8 @@ export class FFmpeg {
    * Write data to input stream.
    * 
    * Write `null` to signal end of stream.
-   * The stream device is mounted at "/dev/istream" and readable from fd 3.
    * 
+   * @param stream value returned from `addInputStream`
    * @returns bytes written
    * 
    * @category File System
@@ -340,8 +340,7 @@ export class FFmpeg {
   /**
    * Read data from output stream.
    * 
-   * The stream device is mounted at "/dev/ostream" and writable to fd 4.
-   * 
+   * @param stream value returned from `addOutputStream`
    * @returns bytes read, or -1 on end of stream
    * 
    * @category File System
