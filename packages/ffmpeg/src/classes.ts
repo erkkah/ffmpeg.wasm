@@ -119,7 +119,6 @@ export class FFmpeg {
       signal?.addEventListener(
         "abort",
         () => {
-          this.#worker && this.#worker.postMessage({ id, type: FFMessageType.ABORT });
           reject(new DOMException(`Message # ${id} was aborted`, "AbortError"));
         },
         { once: true }
